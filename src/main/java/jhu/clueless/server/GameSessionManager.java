@@ -35,13 +35,10 @@ public class GameSessionManager {
     }
 
     public GameState startGame(String gameId, String token) {
-
         GameSession session = sessions.get(gameId);
-
         if (session == null) {
             throw new IllegalArgumentException("GAME_NOT_FOUND");
         }
-
         return session.start(token);
     }
 
