@@ -70,16 +70,28 @@ public class ClueLessController {
 
   // C2
   @PostMapping("/api/games/{gameId}/players")
-  public Map<String, Object> joinGame(@PathVariable String gameId, @RequestBody JoinGameRequest body) {
-    if (!sessions.gameExists(gameId)) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "GAME_NOT_FOUND");
-    return server.joinGame(gameId, body.username());
+  public Map<String, Object> joinGame(@PathVariable String gameId, @RequestBody JoinGameRequest body) 
+  {
+    try {
+        if (!sessions.gameExists(gameId)) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "GAME_NOT_FOUND");
+        return server.joinGame(gameId, body.username());
+    } catch (IllegalStateException e) {
+        return Map.of("status", "ERROR", "message", e.getMessage());
+    }
   }
 
   // C4
   @PostMapping("/api/games/{gameId}/start")
-  public Map<String, Object> startGame(@PathVariable String gameId, @RequestHeader("Authorization") String auth) {
-    server.startGame(gameId, player(auth));
-    return OK;
+  public Map<String, Object> startGame(
+    @PathVariable String gameId, 
+    @RequestHeader("Authorization") String auth
+  ) {
+      try {
+          server.startGame(gameId, player(auth));
+          return Map.of("status", "OK");
+      } catch (IllegalStateException e) {
+          return Map.of("status", "ERROR", "message", e.getMessage());
+      }
   }
 
   // C6
