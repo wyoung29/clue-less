@@ -36,7 +36,7 @@ public class MatchmakingService {
 
         String playerId = UUID.randomUUID().toString();
         String token = UUID.randomUUID().toString();
-        Player player = new Player(playerId, null);
+        Player player = new Player(playerId, null, null);
         GameSession session = sessions.findAvailableSession();
 
         // allows the first player to start the game

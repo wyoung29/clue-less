@@ -1,57 +1,286 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Clue-Less Test</title>
+    <title>Clue-Less</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            background: #f4f4f4;
+            color: #222;
+        }
+
+        .center-screen {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 80vh;
+            text-align: center;
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px;
+        }
+
+        button:disabled {
+            cursor: not-allowed;
+        }
+
+        select {
+            padding: 10px;
+            margin: 8px;
+            font-size: 15px;
+        }
+
+        #gameScreen {
+            display: none;
+            padding: 30px;
+        }
+
+        #playerHand {
+            margin-top: 40px;
+            padding: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+        }
+
+        #playerHand li {
+            margin: 8px 0;
+        }
+
+        #turnSection {
+            margin-top: 30px;
+            padding: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        #turnMessage {
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        #accusationSection {
+            margin-top: 20px;
+            padding: 20px;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        #accusationMessage {
+            font-weight: bold;
+        }
+
+        #lobbyError {
+            color: red;
+        }
+
+        #gameOverScreen {
+            display: none;
+            text-align: center;
+            padding: 60px 20px;
+        }
+    </style>
 </head>
+
 <body>
 
-    <h1>Clue-Less Matchmaking Test</h1>
+    <!-- Lobby -->
+    <div id="lobbyScreen" class="center-screen">
 
-    <button onclick="joinMatchmaking()">Join Matchmaking</button>
+        <h1>Clue-Less</h1>
 
-    <h3>Player Information</h3>
-    <pre id="response">Not joined yet.</pre>
+        <button id="joinButton" onclick="joinMatchmaking()">
+            Join Matchmaking
+        </button>
 
-    <h3>WebSocket Messages</h3>
-    <pre id="messages">Not connected.</pre>
+        <h2 id="waitingMessage" hidden>
+            Waiting for more players...
+        </h2>
 
-    <button id="startButton" onclick="startGame()" hidden>
-        Start Game
-    </button>
+        <p id="playerCount"></p>
 
-    <h3>Game State</h3>
-    <pre id="gameState"></pre>
+        <button id="startButton" onclick="startGame()" hidden>
+            Start Game
+        </button>
+
+        <p id="lobbyError"></p>
+
+    </div>
+
+
+    <!-- Game -->
+    <div id="gameScreen">
+
+        <h1>Clue-Less</h1>
+
+        <h2>Game Started!</h2>
+
+        <p id="characterInfo"></p>
+        <p id="locationInfo"></p>
+
+
+        <!-- Turn Information -->
+        <div id="turnSection">
+
+            <h2>Turn</h2>
+
+            <p id="turnMessage">Waiting for turn information...</p>
+
+            <div id="turnButtons" hidden>
+                <button onclick="makeGuess()">Guess</button>
+                <button onclick="showAccusation()">Accuse</button>
+            </div>
+
+            <p id="turnStatus"></p>
+
+        </div>
+
+
+        <!-- Accusation -->
+        <div id="accusationSection" hidden>
+
+            <h2>Make an Accusation</h2>
+
+            <p>Select the character, weapon, and room:</p>
+
+            <div>
+                <label for="accusationCharacter">Character:</label>
+                <select id="accusationCharacter">
+                    <option value="SCARLET">Miss Scarlet</option>
+                    <option value="MUSTARD">Colonel Mustard</option>
+                    <option value="WHITE">Mrs. White</option>
+                    <option value="GREEN">Mr. Green</option>
+                    <option value="PEACOCK">Mrs. Peacock</option>
+                    <option value="PLUM">Professor Plum</option>
+                </select>
+            </div>
+
+            <div>
+                <label for="accusationWeapon">Weapon:</label>
+                <select id="accusationWeapon">
+                    <option value="CANDLESTICK">Candlestick</option>
+                    <option value="KNIFE">Knife</option>
+                    <option value="LEAD_PIPE">Lead Pipe</option>
+                    <option value="REVOLVER">Revolver</option>
+                    <option value="ROPE">Rope</option>
+                    <option value="WRENCH">Wrench</option>
+                </select>
+            </div>
+
+            <div>
+                <label for="accusationRoom">Room:</label>
+                <select id="accusationRoom">
+                    <option value="KITCHEN">Kitchen</option>
+                    <option value="BALLROOM">Ballroom</option>
+                    <option value="CONSERVATORY">Conservatory</option>
+                    <option value="DINING_ROOM">Dining Room</option>
+                    <option value="BILLIARD_ROOM">Billiard Room</option>
+                    <option value="LIBRARY">Library</option>
+                    <option value="LOUNGE">Lounge</option>
+                    <option value="HALL">Hall</option>
+                    <option value="STUDY">Study</option>
+                </select>
+            </div>
+
+            <button id="submitAccusationButton" onclick="makeAccusation()">
+                Submit Accusation
+            </button>
+
+            <button onclick="hideAccusation()">
+                Cancel
+            </button>
+
+            <p id="accusationMessage"></p>
+
+        </div>
+
+
+        <!-- Player Hand -->
+        <div id="playerHand">
+
+            <h2>Your Cards</h2>
+
+            <ul id="cardsList"></ul>
+
+        </div>
+
+    </div>
+
+
+    <!-- Game Over -->
+    <div id="gameOverScreen" class="center-screen">
+
+        <h1>Game Over!</h1>
+
+        <h2 id="gameOverMessage"></h2>
+
+    </div>
+
 
     <script>
+
         let playerToken;
+        let playerId;
         let gameId;
         let socket;
 
+
+        // Join matchmaking
         async function joinMatchmaking() {
+
+            const joinButton = document.getElementById("joinButton");
+            const waitingMessage = document.getElementById("waitingMessage");
+
             try {
+
+                joinButton.hidden = true;
+                waitingMessage.hidden = false;
+
                 const response = await fetch("/api/matchmaking", {
                     method: "POST"
                 });
 
+                if (!response.ok) {
+                    throw new Error("Failed to join matchmaking.");
+                }
+
                 const data = await response.json();
 
                 playerToken = data.token;
+                playerId = data.playerId;
                 gameId = data.gameId;
 
-                document.getElementById("response").textContent =
-                    JSON.stringify(data, null, 2);
+                document.getElementById("playerCount").textContent =
+                    "Game ID: " + gameId;
 
                 connectWebSocket();
 
             } catch (error) {
-                document.getElementById("response").textContent =
+
+                waitingMessage.hidden = true;
+                joinButton.hidden = false;
+
+                document.getElementById("lobbyError").textContent =
                     error.message;
             }
         }
 
+
+        // Connect WebSocket
         function connectWebSocket() {
+
             const protocol = location.protocol === "https:" ? "wss:" : "ws:";
 
             socket = new WebSocket(
@@ -59,24 +288,65 @@
             );
 
             socket.onopen = () => {
-                document.getElementById("messages").textContent =
-                    "WebSocket connected!";
+                console.log("WebSocket connected");
             };
 
             socket.onmessage = (event) => {
+
                 const message = JSON.parse(event.data);
 
-                document.getElementById("messages").textContent =
-                    JSON.stringify(message, null, 2);
+                console.log("WebSocket message:", message);
 
-                if (message.type === "B18_PLAYERS_READY") {
-                    document.getElementById("startButton").hidden = false;
+                switch (message.type) {
+
+                    case "B18_PLAYERS_READY":
+
+                        document.getElementById("waitingMessage").textContent =
+                            "Enough players have joined!";
+
+                        document.getElementById("startButton").hidden = false;
+                        break;
+
+
+                    case "B4_GAME_STARTED":
+
+                        showGame();
+                        break;
+
+
+                    case "B19_PLAYER_HAND_DEALT":
+
+                        showPlayerHand(message.payload);
+                        break;
+
+
+                    case "B5_TURN_CHANGED":
+
+                        updateTurn(message.payload);
+                        break;
+
+
+                    case "B20_INCORRECT_ACCUSATION":
+
+                        document.getElementById("accusationSection").hidden = true;
+                        document.getElementById("turnButtons").hidden = true;
+
+                        document.getElementById("turnStatus").textContent =
+                            "Your accusation was incorrect!";
+
+                        break;
+
+
+                    case "B14_GAME_OVER":
+
+                        showGameOver(message.payload);
+                        break;
                 }
             };
 
             socket.onerror = () => {
-                document.getElementById("messages").textContent =
-                    "WebSocket error.";
+                document.getElementById("lobbyError").textContent =
+                    "WebSocket connection error.";
             };
 
             socket.onclose = () => {
@@ -84,8 +354,17 @@
             };
         }
 
+
+        // Start game
         async function startGame() {
+
+            const startButton = document.getElementById("startButton");
+
+            startButton.disabled = true;
+            startButton.textContent = "Starting Game...";
+
             try {
+
                 const response = await fetch(
                     `/api/matchmaking/${gameId}/start`,
                     {
@@ -96,18 +375,184 @@
                     }
                 );
 
-                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error("Failed to start game.");
+                }
 
-                document.getElementById("gameState").textContent =
-                    JSON.stringify(data, null, 2);
-
-                document.getElementById("startButton").hidden = true;
+                startButton.hidden = true;
 
             } catch (error) {
-                document.getElementById("gameState").textContent =
+
+                startButton.disabled = false;
+                startButton.textContent = "Start Game";
+
+                document.getElementById("lobbyError").textContent =
                     error.message;
             }
         }
+
+
+        // Show game screen
+        function showGame() {
+
+            document.getElementById("lobbyScreen").style.display = "none";
+            document.getElementById("gameScreen").style.display = "block";
+        }
+
+
+        // Display player's private information
+        function showPlayerHand(payload) {
+
+            document.getElementById("characterInfo").textContent =
+                "Character: " + payload.character;
+
+            document.getElementById("locationInfo").textContent =
+                "Starting Location: " + payload.location;
+
+            const cardsList = document.getElementById("cardsList");
+
+            cardsList.innerHTML = "";
+
+            payload.cards.forEach(card => {
+
+                const li = document.createElement("li");
+                li.textContent = card;
+
+                cardsList.appendChild(li);
+            });
+        }
+
+
+        // Update whose turn it is
+        function updateTurn(payload) {
+
+            const turnMessage = document.getElementById("turnMessage");
+            const turnButtons = document.getElementById("turnButtons");
+
+            document.getElementById("turnStatus").textContent = "";
+
+            if (payload.playerId === playerId) {
+
+                turnMessage.textContent = "It's your turn!";
+
+                turnButtons.hidden = false;
+
+            } else {
+
+                turnMessage.textContent =
+                    "Waiting on " + payload.character + "...";
+
+                turnButtons.hidden = true;
+            }
+        }
+
+
+        // Show accusation form
+        function showAccusation() {
+
+            document.getElementById("accusationSection").hidden = false;
+            document.getElementById("accusationMessage").textContent = "";
+        }
+
+
+        // Hide accusation form
+        function hideAccusation() {
+
+            document.getElementById("accusationSection").hidden = true;
+        }
+
+
+        // Submit accusation
+        async function makeAccusation() {
+
+            const submitButton =
+                document.getElementById("submitAccusationButton");
+
+            const accusationMessage =
+                document.getElementById("accusationMessage");
+
+            const request = {
+                character: document.getElementById("accusationCharacter").value,
+                weapon: document.getElementById("accusationWeapon").value,
+                room: document.getElementById("accusationRoom").value
+            };
+
+            submitButton.disabled = true;
+            accusationMessage.textContent = "Submitting accusation...";
+
+            try {
+
+                const response = await fetch(
+                    `/api/matchmaking/${gameId}/accusation`,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "X-Player-Token": playerToken
+                        },
+                        body: JSON.stringify(request)
+                    }
+                );
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.status || "Failed to submit accusation.");
+                }
+
+                if (data.status === "CORRECT") {
+
+                    accusationMessage.textContent =
+                        "Correct accusation! You won!";
+
+                    document.getElementById("accusationSection").hidden = true;
+
+                } else if (data.status === "INCORRECT") {
+
+                    accusationMessage.textContent =
+                        "Incorrect! Moving to the next player's turn...";
+
+                    document.getElementById("accusationSection").hidden = true;
+                    document.getElementById("turnButtons").hidden = true;
+
+                } else {
+
+                    accusationMessage.textContent =
+                        "Error: " + data.status;
+                }
+
+            } catch (error) {
+
+                accusationMessage.textContent = error.message;
+
+            } finally {
+
+                submitButton.disabled = false;
+            }
+        }
+
+
+        // Show game over screen
+        function showGameOver(payload) {
+
+            document.getElementById("gameScreen").style.display = "none";
+            document.getElementById("gameOverScreen").style.display = "flex";
+
+            if (payload.winnerPlayerId === playerId) {
+                document.getElementById("gameOverMessage").textContent =
+                    "Congratulations! You solved the mystery!";
+            } else {
+                document.getElementById("gameOverMessage").textContent =
+                    "The mystery has been solved! Better luck next time.";
+            }
+        }
+
+
+        // Placeholder: Guess
+        function makeGuess() {
+            console.log("Guess clicked");
+        }
+
     </script>
 
 </body>

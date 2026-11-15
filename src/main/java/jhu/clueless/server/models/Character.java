@@ -1,20 +1,18 @@
-
 package jhu.clueless.server.models;
 
 public enum Character {
 
-    // all characters and starting locations (TODO: rooms for now)
-    SCARLET("Miss Scarlet", "HALL"),
-    MUSTARD("Colonel Mustard", "LOUNGE"),
-    WHITE("Mrs. White", "KITCHEN"),
-    GREEN("Mr. Green", "CONSERVATORY"),
-    PEACOCK("Mrs. Peacock", "BILLIARD_ROOM"),
-    PLUM("Professor Plum", "LIBRARY");
+    SCARLET("Miss Scarlet", Room.HALL),
+    MUSTARD("Colonel Mustard", Room.LOUNGE),
+    WHITE("Mrs. White", Room.KITCHEN),
+    GREEN("Mr. Green", Room.CONSERVATORY),
+    PEACOCK("Mrs. Peacock", Room.BILLIARD_ROOM),
+    PLUM("Professor Plum", Room.LIBRARY);
 
     private final String name;
-    private final String location;
+    private final Room location;
 
-    Character(String name, String location) {
+    Character(String name, Room location) {
         this.name = name;
         this.location = location;
     }
@@ -23,7 +21,7 @@ public enum Character {
         return name;
     }
 
-    public String getLocation() {
+    public Room getLocation() {
         return location;
     }
 }

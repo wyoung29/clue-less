@@ -41,7 +41,7 @@ public final class MessagePayloads {
 
     // C9: Make accusation
     public record AccusationRequest(
-        String suspect,
+        String character,
         String weapon,
         String room
     ) {}
@@ -75,8 +75,7 @@ public final class MessagePayloads {
     // B5: Turn changed
     public record TurnChangedPayload(
         String playerId,
-        String character,
-        int turn
+        String character
     ) {}
 
     // B7: Suggestion made
@@ -93,5 +92,12 @@ public final class MessagePayloads {
         String gameId,
         int playerCount,
         boolean canStart
+    ) {}
+
+    public record PlayerHandPayload(
+        String gameId,
+        String character,
+        String location,
+        List<String> cards
     ) {}
 }
