@@ -1,4 +1,3 @@
-
 package jhu.clueless.server;
 
 import java.util.ArrayList;
@@ -7,6 +6,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import jhu.clueless.messaging.MessagePayloads;
+import jhu.clueless.server.models.Card;
 import jhu.clueless.server.models.Character;
 import jhu.clueless.server.models.Player;
 
@@ -15,8 +16,10 @@ public class GameSession {
     private final String gameId;
     private final String hostToken;
     private final Map<String, Player> playersByToken;
+    private boolean completed;
 
     private GameState gameState;
+    private Card.Solution solution;
     private boolean started;
 
     public GameSession(
@@ -40,22 +43,34 @@ public class GameSession {
             throw new IllegalStateException("GAME_ALREADY_STARTED");
         }
 
+        // Assign random characters
         List<Character> characters =
             new ArrayList<>(List.of(Character.values()));
 
         Collections.shuffle(characters);
 
-        int index = 0;
+        // Generate solution and deal cards
+        solution = Card.createRandomSolution();
+        List<List<Card>> hands = Card.dealCards(
+            playersByToken.size(),
+            solution
+        );
 
+        //TODO: remove me
+        System.out.println("DEBUG - GAME SOLUTION: " + solution);
+
+        // Assign a character and hand to each player
+        int index = 0;
         for (Map.Entry<String, Player> entry : playersByToken.entrySet()) {
             Player oldPlayer = entry.getValue();
 
-            Player assignedPlayer = new Player(
+            entry.setValue(new Player(
                 oldPlayer.playerId(),
-                characters.get(index++)
-            );
+                characters.get(index),
+                hands.get(index)
+            ));
 
-            entry.setValue(assignedPlayer);
+            index++;
         }
 
         gameState = new GameState(
@@ -93,14 +108,42 @@ public class GameSession {
     }
 
     public Map<String, Player> getPlayersByToken() {
-        return Map.copyOf(playersByToken);
+        return Collections.unmodifiableMap(playersByToken);
     }
 
     public GameState getGameState() {
         return gameState;
     }
 
+    public Card.Solution getSolution() {
+        return solution;
+    }
+
     public boolean isStarted() {
         return started;
+    }
+
+    public synchronized void completeGame() {
+        completed = true;
+    }
+
+    public boolean isCompleted() {
+        return completed;
+    }
+
+    public synchronized Player nextTurn(String currentPlayerId) {
+        List<Player> players = new ArrayList<>(playersByToken.values());
+
+        if (players.isEmpty()) {
+            throw new IllegalStateException("NO_PLAYERS_IN_GAME");
+        }
+
+        for (int i = 0; i < players.size(); i++) {
+            if (players.get(i).playerId().equals(currentPlayerId)) {
+                return players.get((i + 1) % players.size());
+            }
+        }
+
+        throw new IllegalArgumentException("PLAYER_NOT_FOUND");
     }
 }
