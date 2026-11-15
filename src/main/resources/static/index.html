@@ -1,35 +1,111 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clue-Less Test</title>
 </head>
 <body>
 
     <h1>Clue-Less Matchmaking Test</h1>
 
-    <button onclick="joinQueue()">Join Queue</button>
+    <button onclick="joinMatchmaking()">Join Matchmaking</button>
 
-    <h2>Response</h2>
-    <pre id="response">Waiting...</pre>
+    <h3>Player Information</h3>
+    <pre id="response">Not joined yet.</pre>
+
+    <h3>WebSocket Messages</h3>
+    <pre id="messages">Not connected.</pre>
+
+    <button id="startButton" onclick="startGame()" hidden>
+        Start Game
+    </button>
+
+    <h3>Game State</h3>
+    <pre id="gameState"></pre>
 
     <script>
-        async function joinQueue() {
-            const responseElement = document.getElementById("response");
+        let playerToken;
+        let gameId;
+        let socket;
 
+        async function joinMatchmaking() {
             try {
-                const response = await fetch("/api/queue/join", {
+                const response = await fetch("/api/matchmaking", {
                     method: "POST"
                 });
 
                 const data = await response.json();
 
-                responseElement.textContent =
+                playerToken = data.token;
+                gameId = data.gameId;
+
+                document.getElementById("response").textContent =
                     JSON.stringify(data, null, 2);
 
+                connectWebSocket();
+
             } catch (error) {
-                responseElement.textContent = error.message;
+                document.getElementById("response").textContent =
+                    error.message;
+            }
+        }
+
+        function connectWebSocket() {
+            const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+
+            socket = new WebSocket(
+                `${protocol}//${location.host}/ws?token=${encodeURIComponent(playerToken)}`
+            );
+
+            socket.onopen = () => {
+                document.getElementById("messages").textContent =
+                    "WebSocket connected!";
+            };
+
+            socket.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+
+                document.getElementById("messages").textContent =
+                    JSON.stringify(message, null, 2);
+
+                if (message.type === "B18_PLAYERS_READY") {
+                    document.getElementById("startButton").hidden = false;
+                }
+            };
+
+            socket.onerror = () => {
+                document.getElementById("messages").textContent =
+                    "WebSocket error.";
+            };
+
+            socket.onclose = () => {
+                console.log("WebSocket disconnected");
+            };
+        }
+
+        async function startGame() {
+            try {
+                const response = await fetch(
+                    `/api/matchmaking/${gameId}/start`,
+                    {
+                        method: "POST",
+                        headers: {
+                            "X-Player-Token": playerToken
+                        }
+                    }
+                );
+
+                const data = await response.json();
+
+                document.getElementById("gameState").textContent =
+                    JSON.stringify(data, null, 2);
+
+                document.getElementById("startButton").hidden = true;
+
+            } catch (error) {
+                document.getElementById("gameState").textContent =
+                    error.message;
             }
         }
     </script>

@@ -30,6 +30,18 @@ public class ClueLessWebSocketHandler extends TextWebSocketHandler {
      */
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws IOException {
+
+        String query = session.getUri().getQuery();
+
+        if (query != null && query.startsWith("token=")) {
+            String token = java.net.URLDecoder.decode(
+                query.substring(6),
+                java.nio.charset.StandardCharsets.UTF_8
+            );
+
+            registerPlayer(token, session);
+        }
+
         sendMessage(session, new WebSocketMessage(
             ClientMessageType.C14_WebSocket_Connection_Open,
             null
