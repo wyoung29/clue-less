@@ -7,13 +7,20 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
+import jhu.clueless.messaging.ClientMessageType;
+import jhu.clueless.messaging.WebSocketMessage;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Handles WebSocket connections for the Clue-Less game.
  */
 @Component
 public class ClueLessWebSocketHandler extends TextWebSocketHandler {
+    private final Map<String, WebSocketSession> connectedPlayers = new ConcurrentHashMap<>();
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
      * Sends a welcome message when a client connects to the server.
@@ -23,7 +30,10 @@ public class ClueLessWebSocketHandler extends TextWebSocketHandler {
      */
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws IOException {
-        sendMessage(session, "Connected to Clue-Less server!");
+        sendMessage(session, new WebSocketMessage(
+            ClientMessageType.C14_WebSocket_Connection_Open,
+            null
+        ));
     }
 
     /**
@@ -34,17 +44,28 @@ public class ClueLessWebSocketHandler extends TextWebSocketHandler {
      */
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
+        connectedPlayers.values().remove(session);
         System.out.println("Client disconnected");
     }
 
-    /**
-     * Sends a text message to a specific connected client.
-     *
-     * @param session the WebSocket session to send the message to
-     * @param message the message to send to the client
-     * @throws IOException if sending the message fails
-     */
-    public void sendMessage(WebSocketSession session, String message) throws IOException {
-        session.sendMessage(new TextMessage(message));
+    public void registerPlayer(String token, WebSocketSession session) {
+        connectedPlayers.put(token, session);
+    }
+
+    public void sendMessage(WebSocketSession session, WebSocketMessage message)
+            throws IOException {
+
+        String json = objectMapper.writeValueAsString(message);
+        session.sendMessage(new TextMessage(json));
+    }
+
+    public void sendToPlayer(String token, WebSocketMessage message)
+            throws IOException {
+
+        WebSocketSession session = connectedPlayers.get(token);
+
+        if (session != null && session.isOpen()) {
+            sendMessage(session, message);
+        }
     }
 }

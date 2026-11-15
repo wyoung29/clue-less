@@ -87,4 +87,11 @@ public final class MessagePayloads {
         String weapon,
         String room
     ) {}
+
+    // B18: Game ready
+    public record GameReadyPayload(
+        String gameId,
+        int playerCount,
+        boolean canStart
+    ) {}
 }

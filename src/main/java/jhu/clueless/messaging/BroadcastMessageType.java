@@ -7,7 +7,8 @@ public enum BroadcastMessageType {
     B2_CHARACTER_SELECTED,
     B3_PLAYER_LEFT,
     B4_GAME_STARTED,
-
+    B18_PLAYERS_READY,
+    
     // Turns and movement
     B5_TURN_CHANGED,
     B6_PLAYER_MOVED,

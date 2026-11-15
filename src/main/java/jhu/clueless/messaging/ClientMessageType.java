@@ -19,5 +19,8 @@ public enum ClientMessageType {
     C7_MAKE_SUGGESTION,
     C8_DISPROVE_RESPONSE,
     C9_MAKE_ACCUSATION,
-    C10_END_TURN
+    C10_END_TURN,
+
+    // General
+    C14_WebSocket_Connection_Open
 }

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clue-Less Test</title>
+</head>
+<body>
+
+    <h1>Clue-Less Matchmaking Test</h1>
+
+    <button onclick="joinQueue()">Join Queue</button>
+
+    <h2>Response</h2>
+    <pre id="response">Waiting...</pre>
+
+    <script>
+        async function joinQueue() {
+            const responseElement = document.getElementById("response");
+
+            try {
+                const response = await fetch("/api/queue/join", {
+                    method: "POST"
+                });
+
+                const data = await response.json();
+
+                responseElement.textContent =
+                    JSON.stringify(data, null, 2);
+
+            } catch (error) {
+                responseElement.textContent = error.message;
+            }
+        }
+    </script>
+
+</body>
+</html>
