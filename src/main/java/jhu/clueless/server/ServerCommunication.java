@@ -58,16 +58,29 @@ public class ServerCommunication {
     /** C2 -> B1 */
     public Map<String, Object> joinGame(String gameId, String username) {
         received(ClientMessageType.C2_JOIN_GAME, gameId, username);
+        
+        int currentCount = sessions.players(gameId).size();
+        if (currentCount >= 6) {
+            throw new IllegalStateException("Game is full. Maximum of 6 players allowed.");
+        }
+
         String[] ids = sessions.addPlayer(gameId, username);
         broadcast(gameId, BroadcastMessageType.B1_PLAYER_JOINED, Map.of(
             "playerId", ids[0], "username", username, "playerCount", sessions.players(gameId).size()));
         return Map.of("gameId", gameId, "playerId", ids[0], "token", ids[1]);
-    }
+    }   
 
     /** C4 -> B4, U1 (each player) */
     public void startGame(String gameId, String playerId) {
         received(ClientMessageType.C4_START_GAME, gameId, playerId);
+        
         logic.validateAction(playerId, "C4_START_GAME");
+        
+        int playerCount = sessions.players(gameId).size();
+        if (playerCount < 3) {
+            throw new IllegalStateException("A minimum of 3 players is required to start.");
+        }
+
         broadcast(gameId, BroadcastMessageType.B4_GAME_STARTED, Map.of("players", sessions.players(gameId)));
         for (String p : sessions.players(gameId)) {
             sendTo(gameId, p, UnicastMessageType.U1_HAND_DEALT, Map.of("cards", state.hand(p)));
