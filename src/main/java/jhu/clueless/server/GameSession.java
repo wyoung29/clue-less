@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import jhu.clueless.messaging.MessagePayloads;
 import jhu.clueless.server.models.Card;
 import jhu.clueless.server.models.Character;
 import jhu.clueless.server.models.Player;
@@ -54,6 +55,9 @@ public class GameSession {
             playersByToken.size(),
             solution
         );
+
+        //TODO: remove me
+        System.out.println("DEBUG - GAME SOLUTION: " + solution);
 
         // Assign a character and hand to each player
         int index = 0;

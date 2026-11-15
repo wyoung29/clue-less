@@ -30,8 +30,9 @@ public final class MessagePayloads {
 
     // C7: Make suggestion
     public record SuggestionRequest(
-        String suspect,
-        String weapon
+        String character,
+        String weapon,
+        String room
     ) {}
 
     // C8: Disprove suggestion
@@ -99,5 +100,14 @@ public final class MessagePayloads {
         String character,
         String location,
         List<String> cards
+    ) {}
+
+    public record DisprovePendingPayload(
+        String gameId,
+        String guesserPlayerId,
+        String guesserCharacter,
+        String character,
+        String weapon,
+        String room
     ) {}
 }

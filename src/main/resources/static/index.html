@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -329,10 +330,9 @@
                     case "B20_INCORRECT_ACCUSATION":
 
                         document.getElementById("accusationSection").hidden = true;
-                        document.getElementById("turnButtons").hidden = true;
 
                         document.getElementById("turnStatus").textContent =
-                            "Your accusation was incorrect!";
+                            "Incorrect guess!";
 
                         break;
 
@@ -509,11 +509,15 @@
 
                 } else if (data.status === "INCORRECT") {
 
-                    accusationMessage.textContent =
-                        "Incorrect! Moving to the next player's turn...";
+                    accusationMessage.textContent = "Incorrect guess!";
 
                     document.getElementById("accusationSection").hidden = true;
-                    document.getElementById("turnButtons").hidden = true;
+
+                    document.getElementById("turnStatus").textContent =
+                        "Incorrect guess!";
+
+                    // The next B5_TURN_CHANGED WebSocket message
+                    // will update whose turn it is.
 
                 } else {
 
