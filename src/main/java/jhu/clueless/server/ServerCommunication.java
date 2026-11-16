@@ -1,7 +1,18 @@
 package jhu.clueless.server;
 
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import org.springframework.stereotype.Component;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import jhu.clueless.game.BoardLogic;
+import jhu.clueless.game.BoardLogic.HallwayLocation;
+import jhu.clueless.game.BoardLogic.RoomLocation;
+import jhu.clueless.game.model.Hallway;
+import jhu.clueless.game.model.Location;
+import jhu.clueless.game.model.Room;
 import jhu.clueless.messaging.BroadcastMessageType;
 import jhu.clueless.messaging.ClientMessageType;
 import jhu.clueless.messaging.MessageEnvelope;
@@ -10,11 +21,8 @@ import jhu.clueless.messaging.MessagePayloads.MoveRequest;
 import jhu.clueless.messaging.MessagePayloads.PlayerMovedPayload;
 import jhu.clueless.messaging.UnicastMessageType;
 import jhu.clueless.websocket.ClueLessWebSocketHandler;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
-
-import java.util.Map;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Server Communication component (SRS 2.3.2).
@@ -23,9 +31,10 @@ import java.util.Map;
  * unicast (U#) to one player, broadcast (B#) to everyone in the game.
  */
 @Component
+@Slf4j
+@RequiredArgsConstructor  
 public class ServerCommunication {
 
-    private static final Logger log = LoggerFactory.getLogger("ServerCommunication");
 
     private final GameSessionManager sessions;
     private final GameLogic logic;
@@ -33,17 +42,6 @@ public class ServerCommunication {
     private final SuggestionAccusationManager suggestions;
     private final ClueLessWebSocketHandler sockets;
     private final ObjectMapper mapper;
-
-    public ServerCommunication(GameSessionManager sessions, GameLogic logic, GameStateManager state,
-                               SuggestionAccusationManager suggestions, ClueLessWebSocketHandler sockets,
-                               ObjectMapper mapper) {
-        this.sessions = sessions;
-        this.logic = logic;
-        this.state = state;
-        this.suggestions = suggestions;
-        this.sockets = sockets;
-        this.mapper = mapper;
-    }
 
     // ---------------------------------------------------------------- lobby
 
@@ -81,7 +79,20 @@ public class ServerCommunication {
             throw new IllegalStateException("A minimum of 3 players is required to start.");
         }
 
-        broadcast(gameId, BroadcastMessageType.B4_GAME_STARTED, Map.of("players", sessions.players(gameId)));
+        Map<String, Location> startingPositions = new LinkedHashMap<>();
+        Map<String, String> visiblePositions = new LinkedHashMap<>();
+        for (int i = 0; i < playerCount; i++) {
+            String player = sessions.players(gameId).get(i);
+            String character = sessions.character(player);
+            startingPositions.put(character, new HallwayLocation(Hallway.values()[i]));
+            visiblePositions.put(
+                character,
+                toLocationName(startingPositions.get(character))
+            );
+        }
+        state.initializeGame(gameId, startingPositions);
+
+        broadcast(gameId, BroadcastMessageType.B4_GAME_STARTED, Map.of("players", sessions.players(gameId), "positions", visiblePositions));
         for (String p : sessions.players(gameId)) {
             sendTo(gameId, p, UnicastMessageType.U1_HAND_DEALT, Map.of("cards", state.hand(p)));
         }
@@ -94,8 +105,25 @@ public class ServerCommunication {
         received(ClientMessageType.C6_MOVE, gameId, playerId);
         logic.validateAction(playerId, "C6_MOVE");
         String character = sessions.character(playerId);
-        String from = state.applyMove(character, req.to());
-        broadcast(gameId, BroadcastMessageType.B6_PLAYER_MOVED, new PlayerMovedPayload(character, from, req.to(), "HALLWAY"));
+        Location currentLocation = state.getLocationOfPlayer(gameId, character);
+        Location newLocation = getLocationFromRequest(req.to());
+
+        List<Location> allowedMoves = BoardLogic.destinationsFrom(currentLocation, state.getOccupiedHallways(gameId));
+        if (!allowedMoves.contains(newLocation)) {
+            throw new IllegalStateException(String.format("Invalid move from %s to %s", currentLocation, newLocation));
+        }
+
+        state.updateLocation(gameId, character, newLocation);
+        broadcast(
+            gameId, 
+            BroadcastMessageType.B6_PLAYER_MOVED, 
+            new PlayerMovedPayload(
+                character,
+                toLocationName(currentLocation),
+                toLocationName(newLocation),
+                determineRoute(currentLocation, newLocation)
+            )
+        );
     }
 
     /** C9 -> B12, U5 (accuser only) */
@@ -105,6 +133,30 @@ public class ServerCommunication {
         broadcast(gameId, BroadcastMessageType.B12_ACCUSATION_MADE, Map.of(
             "accuser", playerId, "suspect", req.suspect(), "weapon", req.weapon(), "room", req.room()));
         sendTo(gameId, playerId, UnicastMessageType.U5_ACCUSATION_RESULT, Map.of("correct", correct, "solution", state.caseFile()));
+    }
+
+    private Location getLocationFromRequest(String newLocation) {
+        if (List.of(Room.values()).stream().anyMatch(room -> room.name().equalsIgnoreCase(newLocation))) {
+            return new RoomLocation(Room.valueOf(newLocation));
+        } else if (List.of(Hallway.values()).stream().anyMatch(hallway -> hallway.name().equalsIgnoreCase(newLocation))) {
+            return new HallwayLocation(Hallway.valueOf(newLocation));
+        } else {
+            throw new IllegalArgumentException("Unknown value for location: " + newLocation);
+        }
+    }
+
+    private String determineRoute(Location from, Location to) {
+        return from instanceof HallwayLocation  || to instanceof HallwayLocation ? "HALLWAY" : "PASSAGE";
+    }
+
+    private String toLocationName(Location location) {
+        if (location instanceof RoomLocation roomLocation) {
+            return roomLocation.room().name();
+        }
+        if (location instanceof HallwayLocation hallwayLocation) {
+            return hallwayLocation.hallway().name();
+        }
+        throw new IllegalArgumentException("Unsupported board location: " + location);
     }
 
     // ---------------------------------------------------------------- outbound
