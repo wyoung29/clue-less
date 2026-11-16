@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jhu.clueless.game.BoardLogic;
 import jhu.clueless.game.BoardLogic.HallwayLocation;
 import jhu.clueless.game.BoardLogic.RoomLocation;
+import jhu.clueless.game.model.Card;
 import jhu.clueless.game.model.Hallway;
 import jhu.clueless.game.model.Location;
 import jhu.clueless.game.model.Room;
@@ -56,6 +57,10 @@ public class ServerCommunication {
     /** C2 -> B1 */
     public Map<String, Object> joinGame(String gameId, String username) {
         received(ClientMessageType.C2_JOIN_GAME, gameId, username);
+
+        if (state.isInitialized(gameId)) {
+            throw new IllegalStateException("Game has already started.");
+        }
         
         int currentCount = sessions.players(gameId).size();
         if (currentCount >= 6) {
@@ -83,7 +88,7 @@ public class ServerCommunication {
         Map<String, String> visiblePositions = new LinkedHashMap<>();
         for (int i = 0; i < playerCount; i++) {
             String player = sessions.players(gameId).get(i);
-            String character = sessions.character(player);
+            String character = sessions.character(player).name();
             startingPositions.put(character, new HallwayLocation(Hallway.values()[i]));
             visiblePositions.put(
                 character,
@@ -92,9 +97,16 @@ public class ServerCommunication {
         }
         state.initializeGame(gameId, startingPositions);
 
-        broadcast(gameId, BroadcastMessageType.B4_GAME_STARTED, Map.of("players", sessions.players(gameId), "positions", visiblePositions));
+        Card.Solution solution = state.caseFile(gameId);
+        log.info("DEBUG game {} solution: character={}, weapon={}, room={}",
+            gameId, solution.character(), solution.weapon(), solution.room());
+        sessions.dealCards(gameId, solution);
+        broadcast(gameId, BroadcastMessageType.B4_GAME_STARTED, Map.of(
+            "players", sessions.players(gameId),
+            "positions", visiblePositions
+        ));
         for (String p : sessions.players(gameId)) {
-            sendTo(gameId, p, UnicastMessageType.U1_HAND_DEALT, Map.of("cards", state.hand(p)));
+            sendTo(gameId, p, UnicastMessageType.U1_HAND_DEALT, Map.of("cards", sessions.hand(p)));
         }
     }
 
@@ -104,7 +116,7 @@ public class ServerCommunication {
     public void move(String gameId, String playerId, MoveRequest req) {
         received(ClientMessageType.C6_MOVE, gameId, playerId);
         logic.validateAction(playerId, "C6_MOVE");
-        String character = sessions.character(playerId);
+        String character = sessions.character(playerId).name();
         Location currentLocation = state.getLocationOfPlayer(gameId, character);
         Location newLocation = getLocationFromRequest(req.to());
 
@@ -126,13 +138,32 @@ public class ServerCommunication {
         );
     }
 
+    public List<String> availableMoves(String gameId, String playerId) {
+        if (!sessions.players(gameId).contains(playerId)) {
+            throw new IllegalStateException("Player is not in this game.");
+        }
+
+        String character = sessions.character(playerId).name();
+        Location currentLocation = state.getLocationOfPlayer(gameId, character);
+        return BoardLogic.destinationsFrom(currentLocation, state.getOccupiedHallways(gameId))
+            .stream()
+            .map(this::toLocationName)
+            .toList();
+    }
+
     /** C9 -> B12, U5 (accuser only) */
     public void makeAccusation(String gameId, String playerId, AccusationRequest req) {
         received(ClientMessageType.C9_MAKE_ACCUSATION, gameId, playerId);
-        boolean correct = suggestions.checkAccusation(req.suspect(), req.weapon(), req.room());
+        boolean correct = suggestions.checkAccusation(gameId, req.suspect(), req.weapon(), req.room());
         broadcast(gameId, BroadcastMessageType.B12_ACCUSATION_MADE, Map.of(
             "accuser", playerId, "suspect", req.suspect(), "weapon", req.weapon(), "room", req.room()));
-        sendTo(gameId, playerId, UnicastMessageType.U5_ACCUSATION_RESULT, Map.of("correct", correct, "solution", state.caseFile()));
+        Card.Solution solution = state.caseFile(gameId);
+        Map<String, Object> solutionPayload = Map.of(
+            "suspect", solution.character().name(),
+            "weapon", solution.weapon().name(),
+            "room", solution.room().name());
+        sendTo(gameId, playerId, UnicastMessageType.U5_ACCUSATION_RESULT,
+            Map.of("correct", correct, "solution", solutionPayload));
     }
 
     private Location getLocationFromRequest(String newLocation) {

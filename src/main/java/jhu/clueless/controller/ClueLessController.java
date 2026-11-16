@@ -1,6 +1,7 @@
 package jhu.clueless.controller;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,6 +19,8 @@ import jhu.clueless.messaging.MessagePayloads.MoveRequest;
 import jhu.clueless.messaging.MessagePayloads.PlayerMovedPayload;
 import jhu.clueless.server.GameSessionManager;
 import jhu.clueless.server.ServerCommunication;
+import jhu.clueless.game.model.Character;
+import jhu.clueless.game.model.Room;
 
 
 @RestController
@@ -38,27 +41,27 @@ public class ClueLessController {
     return "Service running successfully!";
   }
 
- @GetMapping("/demo/message")
-    public MessageEnvelope demoMessage() {
-        PlayerMovedPayload payload = new PlayerMovedPayload(
-            "SCARLET",
-            "HALL",
-            "BILLIARD_ROOM",
-            "HALLWAY"
-        );
+  @GetMapping("/demo/message")
+  public MessageEnvelope demoMessage() {
+    PlayerMovedPayload payload = new PlayerMovedPayload(
+        Character.SCARLET.name(),
+        Room.HALL.name(),
+        Room.BILLIARD_ROOM.name(),
+        "HALLWAY"
+    );
 
-        return new MessageEnvelope(
-            "B6_PLAYER_MOVED",
-            "demo-game-123",
-            1L,
-            Map.of(
-                "character", payload.character(),
-                "from", payload.from(),
-                "to", payload.to(),
-                "via", payload.via()
-            )
-        );
-    }
+    return new MessageEnvelope(
+        "B6_PLAYER_MOVED",
+        "demo-game-123",
+        1L,
+        Map.of(
+            "character", payload.character(),
+            "from", payload.from(),
+            "to", payload.to(),
+            "via", payload.via()
+        )
+    );
+  }
 
   // ---- Client-to-server messages (SRS Table 5-2) demonstrated in the skeletal increment ----
 
@@ -70,42 +73,67 @@ public class ClueLessController {
 
   // C2
   @PostMapping("/api/games/{gameId}/players")
-  public Map<String, Object> joinGame(@PathVariable String gameId, @RequestBody JoinGameRequest body) 
-  {
+  public ResponseEntity<Map<String, Object>> joinGame(
+      @PathVariable String gameId,
+      @RequestBody JoinGameRequest body
+  ) {
     try {
-        if (!sessions.gameExists(gameId)) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "GAME_NOT_FOUND");
-        return server.joinGame(gameId, body.username());
+      if (!sessions.gameExists(gameId)) {
+        throw new ResponseStatusException(HttpStatus.NOT_FOUND, "GAME_NOT_FOUND");
+      }
+      return ResponseEntity.ok(server.joinGame(gameId, body.username()));
     } catch (IllegalStateException e) {
-        return Map.of("status", "ERROR", "message", e.getMessage());
+      return ResponseEntity.status(HttpStatus.CONFLICT)
+          .body(Map.of("status", "ERROR", "message", e.getMessage()));
     }
   }
 
   // C4
   @PostMapping("/api/games/{gameId}/start")
-  public Map<String, Object> startGame(
-    @PathVariable String gameId, 
+  public ResponseEntity<Map<String, Object>> startGame(
+    @PathVariable String gameId,
     @RequestHeader("Authorization") String auth
   ) {
-      try {
-          server.startGame(gameId, player(auth));
-          return Map.of("status", "OK");
-      } catch (IllegalStateException e) {
-          return Map.of("status", "ERROR", "message", e.getMessage());
-      }
+    try {
+      server.startGame(gameId, player(auth));
+      return ResponseEntity.ok(Map.of("status", "OK"));
+    } catch (IllegalStateException e) {
+      return ResponseEntity.status(HttpStatus.CONFLICT)
+          .body(Map.of("status", "ERROR", "message", e.getMessage()));
+    }
+  }
+
+  @GetMapping("/api/games/{gameId}/moves")
+  public ResponseEntity<?> availableMoves(
+      @PathVariable String gameId,
+      @RequestHeader("Authorization") String auth
+  ) {
+    try {
+      return ResponseEntity.ok(server.availableMoves(gameId, player(auth)));
+    } catch (IllegalStateException e) {
+      return ResponseEntity.status(HttpStatus.CONFLICT)
+          .body(Map.of("status", "ERROR", "message", e.getMessage()));
+    }
   }
 
   // C6
   @PostMapping("/api/games/{gameId}/move")
-  public Map<String, Object> move(@PathVariable String gameId, @RequestHeader("Authorization") String auth,
-                                  @RequestBody MoveRequest body) {
+  public Map<String, Object> move(
+      @PathVariable String gameId,
+      @RequestHeader("Authorization") String auth,
+      @RequestBody MoveRequest body
+  ) {
     server.move(gameId, player(auth), body);
     return OK;
   }
 
   // C9
   @PostMapping("/api/games/{gameId}/accusation")
-  public Map<String, Object> accuse(@PathVariable String gameId, @RequestHeader("Authorization") String auth,
-                                    @RequestBody AccusationRequest body) {
+  public Map<String, Object> accuse(
+      @PathVariable String gameId,
+      @RequestHeader("Authorization") String auth,
+      @RequestBody AccusationRequest body
+  ) {
     server.makeAccusation(gameId, player(auth), body);
     return OK;
   }

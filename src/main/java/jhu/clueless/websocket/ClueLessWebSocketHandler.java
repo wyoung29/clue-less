@@ -8,13 +8,15 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import jhu.clueless.server.GameSessionManager;
+
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Handles WebSocket connections for the Clue-Less game.
- * Clients connect to /ws?gameId=..&playerId=.. after creating or joining a game,
+ * Clients connect to /ws with their game, player, and token after creating or joining,
  * and the server uses this handler to push unicast (U#) and broadcast (B#) messages.
  */
 @Component
@@ -22,6 +24,12 @@ public class ClueLessWebSocketHandler extends TextWebSocketHandler {
 
     /** gameId -> (playerId -> socket) */
     private final Map<String, Map<String, WebSocketSession>> sessions = new ConcurrentHashMap<>();
+
+    private final GameSessionManager gameSessions;
+
+    public ClueLessWebSocketHandler(GameSessionManager gameSessions) {
+        this.gameSessions = gameSessions;
+    }
 
     /**
      * Sends a welcome message when a client connects to the server and remembers which
@@ -36,12 +44,18 @@ public class ClueLessWebSocketHandler extends TextWebSocketHandler {
             .getQueryParams().toSingleValueMap();
         String gameId = query.get("gameId");
         String playerId = query.get("playerId");
-        if (gameId != null && playerId != null) {
-            session.getAttributes().put("gameId", gameId);
-            session.getAttributes().put("playerId", playerId);
-            sessions.computeIfAbsent(gameId, g -> new ConcurrentHashMap<>()).put(playerId, session);
-            System.out.println("Client connected: game=" + gameId + " player=" + playerId);
+        String token = query.get("token");
+        if (gameId == null || playerId == null || token == null
+            || !playerId.equals(gameSessions.playerForToken(token))
+            || !gameSessions.players(gameId).contains(playerId)) {
+            session.close(CloseStatus.POLICY_VIOLATION);
+            return;
         }
+
+        session.getAttributes().put("gameId", gameId);
+        session.getAttributes().put("playerId", playerId);
+        sessions.computeIfAbsent(gameId, g -> new ConcurrentHashMap<>()).put(playerId, session);
+        System.out.println("Client connected: game=" + gameId + " player=" + playerId);
         sendMessage(session, "Connected to Clue-Less server!");
     }
 
@@ -57,7 +71,7 @@ public class ClueLessWebSocketHandler extends TextWebSocketHandler {
         Object playerId = session.getAttributes().get("playerId");
         if (gameId != null && playerId != null) {
             Map<String, WebSocketSession> game = sessions.get(gameId.toString());
-            if (game != null) game.remove(playerId.toString());
+            if (game != null) game.remove(playerId.toString(), session);
         }
         System.out.println("Client disconnected");
     }

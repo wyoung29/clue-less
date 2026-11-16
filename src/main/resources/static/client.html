@@ -6,6 +6,8 @@
 <style>
   body { font-family: sans-serif; margin: 16px; }
   fieldset { margin-bottom: 8px; }
+  #hand { display: flex; flex-wrap: wrap; gap: 8px; padding: 0; list-style: none; }
+  #hand li { border: 1px solid #777; border-radius: 4px; padding: 8px 12px; }
   #log { font-family: monospace; font-size: 12px; border: 1px solid #999; height: 320px; overflow-y: scroll; padding: 4px; white-space: pre-wrap; }
   .out { color: #555; } .bcast { color: #a33; } .ucast { color: #236; }
 </style>
@@ -22,8 +24,14 @@
   <button onclick="PlayerInput.startGame()">C4 Start game</button>
 </fieldset>
 
+<fieldset><legend>Your cards</legend>
+  <p id="handStatus">Cards will appear here when the game starts.</p>
+  <ul id="hand"></ul>
+</fieldset>
+
 <fieldset><legend>Game</legend>
-  Move to <input id="to" value="HALL" size="10"> <button onclick="PlayerInput.move()">C6 Move</button><br>
+  Move to <select id="to" disabled><option>Start a game to see legal moves</option></select>
+  <button id="moveButton" onclick="PlayerInput.move()" disabled>C6 Move</button><br>
   Suspect <input id="suspect" value="PLUM" size="8"> Weapon <input id="weapon" value="ROPE" size="8">
   Room <input id="room" value="HALL" size="8">
   <button onclick="PlayerInput.accuse()">C9 Accuse</button>
@@ -36,9 +44,16 @@
 
 // Local Game State: what this client knows from the server.
 const LocalGameState = {
-  gameId: null, playerId: null, token: null, lastSeq: 0,
+  gameId: null, playerId: null, token: null, lastSeq: 0, hand: [],
   apply(msg) {
     if (msg.seq != null) this.lastSeq = msg.seq;
+    if (msg.type === 'U1_HAND_DEALT' && Array.isArray(msg.payload?.cards)) {
+      this.hand = msg.payload.cards;
+      GUI.renderHand(this.hand);
+    }
+    if (msg.type === 'B4_GAME_STARTED' || msg.type === 'B6_PLAYER_MOVED') {
+      PlayerInput.refreshMoves();
+    }
     GUI.render(msg);
   }
 };
@@ -57,6 +72,32 @@ const GUI = {
     const cls = msg.type.startsWith('B') ? 'bcast' : 'ucast';
     const seq = msg.seq != null ? ' seq=' + msg.seq : '';
     this.log('RECV ' + msg.type + seq + ' ' + JSON.stringify(msg.payload), cls);
+  },
+  renderHand(cards) {
+    const list = document.getElementById('hand');
+    list.replaceChildren(...cards.map(card => {
+      const item = document.createElement('li');
+      item.textContent = card;
+      return item;
+    }));
+    document.getElementById('handStatus').textContent =
+      cards.length ? 'These cards are private to you.' : 'No cards received yet.';
+  },
+  renderMoves(locations) {
+    const select = document.getElementById('to');
+    const moveButton = document.getElementById('moveButton');
+    select.replaceChildren();
+    if (locations.length === 0) {
+      select.add(new Option('No legal moves available', ''));
+      select.disabled = true;
+      moveButton.disabled = true;
+      return;
+    }
+
+    select.add(new Option('Choose a destination', ''));
+    for (const location of locations) select.add(new Option(location, location));
+    select.disabled = false;
+    moveButton.disabled = false;
   }
 };
 
@@ -74,7 +115,13 @@ const ClientCommunication = {
     return json;
   },
   connect() {
-    const url = 'ws://' + location.host + '/ws?gameId=' + LocalGameState.gameId + '&playerId=' + LocalGameState.playerId;
+    const params = new URLSearchParams({
+      gameId: LocalGameState.gameId,
+      playerId: LocalGameState.playerId,
+      token: LocalGameState.token
+    });
+    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const url = protocol + '//' + location.host + '/ws?' + params;
     const ws = new WebSocket(url);
     ws.onopen = () => document.getElementById('status').textContent =
       'Connected: game ' + LocalGameState.gameId + ', player ' + LocalGameState.playerId;
@@ -99,7 +146,15 @@ const PlayerInput = {
     ClientCommunication.connect();
   },
   startGame() { ClientCommunication.send('POST', game() + '/start'); },
-  move() { ClientCommunication.send('POST', game() + '/move', { to: val('to'), stay: false }); },
+  async refreshMoves() {
+    const locations = await ClientCommunication.send('GET', game() + '/moves');
+    if (Array.isArray(locations)) GUI.renderMoves(locations);
+    else GUI.renderMoves([]);
+  },
+  move() {
+    const destination = val('to');
+    if (destination) ClientCommunication.send('POST', game() + '/move', { to: destination, stay: false });
+  },
   accuse() { ClientCommunication.send('POST', game() + '/accusation', { suspect: val('suspect'), weapon: val('weapon'), room: val('room') }); }
 };
 </script>

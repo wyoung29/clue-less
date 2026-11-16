@@ -4,8 +4,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import java.util.Map;
-
 /**
  * Suggestion and Accusation component (SRS 2.3.2).
  * Skeletal stub: compares an accusation with the stub case file. Suggestions and the
@@ -22,11 +20,12 @@ public class SuggestionAccusationManager {
         this.state = state;
     }
 
-    public boolean checkAccusation(String suspect, String weapon, String room) {
-        Map<String, String> caseFile = state.caseFile();
-        boolean correct = caseFile.get("suspect").equals(suspect) && caseFile.get("weapon").equals(weapon)
-            && caseFile.get("room").equals(room);
-        log.info("checkAccusation({}, {}, {}) -> {}", suspect, weapon, room, correct);
+    public boolean checkAccusation(String gameId, String suspect, String weapon, String room) {
+        var caseFile = state.caseFile(gameId);
+        boolean correct = caseFile.character().name().equals(suspect)
+            && caseFile.weapon().name().equals(weapon)
+            && caseFile.room().name().equals(room);
+        log.info("checkAccusation({}, {}, {}, {}) -> {}", gameId, suspect, weapon, room, correct);
         return correct;
     }
 }

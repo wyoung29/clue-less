@@ -2,30 +2,31 @@ package jhu.clueless.server;
 
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+
 import org.springframework.stereotype.Component;
+
 import jhu.clueless.game.BoardLogic;
 import jhu.clueless.game.model.Hallway;
 import jhu.clueless.game.model.Location;
+import jhu.clueless.game.model.Card;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * Game State Management component (SRS 2.3.2).
- * Skeletal stub: tracks token locations and the broadcast sequence number; hands and the
- * case file are hard-coded until the Minimal increment.
+ * Tracks token locations, broadcast sequence numbers, and each game's solution.
  */
 @Component
 @Slf4j 
 public class GameStateManager {
 
-
     private final Map<String, AtomicLong> seqByGame = new ConcurrentHashMap<>();
     private final Map<String, BoardState> boardLocation = new ConcurrentHashMap<>();
+    private final Map<String, Card.Solution> caseFiles = new ConcurrentHashMap<>();
 
     /** Broadcasts are numbered 1, 2, 3, ... per game (SRS 5.1). */
     public long nextSeq(String gameId) {
@@ -40,6 +41,10 @@ public class GameStateManager {
         if (boardLocation.putIfAbsent(gameId, board) != null) {
             throw new IllegalStateException("Game already initialized: " + gameId);
         }
+    }
+
+    public boolean isInitialized(String gameId) {
+        return boardLocation.containsKey(gameId);
     }
 
     public Location getLocationOfPlayer(String gameId, String player) {
@@ -70,14 +75,12 @@ public class GameStateManager {
         log.info("updateLocation({}, {}: {} -> {})", gameId, player, oldLocation, newLocation);
     }
 
-    public List<String> hand(String playerId) {
-        log.info("hand({}) -> stub cards", playerId);
-        return List.of("PLUM", "ROPE", "KITCHEN");
-    }
-
-    /** Stub case file so an accusation result can be demonstrated. */
-    public Map<String, String> caseFile() {
-        return Map.of("suspect", "SCARLET", "weapon", "KNIFE", "room", "HALL");
+    public Card.Solution caseFile(String gameId) {
+        return caseFiles.computeIfAbsent(gameId, id -> {
+            Card.Solution solution = Card.createRandomSolution();
+            log.info("caseFile({}) initialized", id);
+            return solution;
+        });
     }
 
     private BoardState requireBoard(String gameId) {
