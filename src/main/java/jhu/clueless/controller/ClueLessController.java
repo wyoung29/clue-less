@@ -14,9 +14,11 @@ import java.util.Map;
 import jhu.clueless.messaging.MessageEnvelope;
 import jhu.clueless.messaging.MessagePayloads.AccusationRequest;
 import jhu.clueless.messaging.MessagePayloads.CreateGameRequest;
+import jhu.clueless.messaging.MessagePayloads.DisproveResponseRequest;
 import jhu.clueless.messaging.MessagePayloads.JoinGameRequest;
 import jhu.clueless.messaging.MessagePayloads.MoveRequest;
 import jhu.clueless.messaging.MessagePayloads.PlayerMovedPayload;
+import jhu.clueless.messaging.MessagePayloads.SuggestionRequest;
 import jhu.clueless.server.GameSessionManager;
 import jhu.clueless.server.ServerCommunication;
 import jhu.clueless.game.model.Character;
@@ -116,26 +118,93 @@ public class ClueLessController {
     }
   }
 
+  @GetMapping("/api/games/{gameId}/can-suggest")
+  public ResponseEntity<?> canSuggest(
+      @PathVariable String gameId,
+      @RequestHeader("Authorization") String auth
+  ) {
+    try {
+      return ResponseEntity.ok(Map.of("canSuggest", server.canSuggest(gameId, player(auth))));
+    } catch (IllegalStateException e) {
+      return ResponseEntity.status(HttpStatus.CONFLICT)
+          .body(Map.of("status", "ERROR", "message", e.getMessage()));
+    }
+  }
+
   // C6
   @PostMapping("/api/games/{gameId}/move")
-  public Map<String, Object> move(
+  public ResponseEntity<Map<String, Object>> move(
       @PathVariable String gameId,
       @RequestHeader("Authorization") String auth,
       @RequestBody MoveRequest body
   ) {
-    server.move(gameId, player(auth), body);
-    return OK;
+    try {
+      server.move(gameId, player(auth), body);
+      return ResponseEntity.ok(OK);
+    } catch (IllegalStateException e) {
+      return ResponseEntity.status(HttpStatus.CONFLICT)
+          .body(Map.of("status", "ERROR", "message", e.getMessage()));
+    } catch (IllegalArgumentException e) {
+      return ResponseEntity.badRequest()
+          .body(Map.of("status", "ERROR", "message", e.getMessage()));
+    }
+  }
+
+  // C7
+  @PostMapping("/api/games/{gameId}/suggestion")
+  public ResponseEntity<Map<String, Object>> suggest(
+      @PathVariable String gameId,
+      @RequestHeader("Authorization") String auth,
+      @RequestBody SuggestionRequest body
+  ) {
+    try {
+      server.makeSuggestion(gameId, player(auth), body);
+      return ResponseEntity.ok(OK);
+    } catch (IllegalStateException e) {
+      return ResponseEntity.status(HttpStatus.CONFLICT)
+          .body(Map.of("status", "ERROR", "message", e.getMessage()));
+    } catch (IllegalArgumentException e) {
+      return ResponseEntity.badRequest()
+          .body(Map.of("status", "ERROR", "message", e.getMessage()));
+    }
+  }
+
+  // C8
+  @PostMapping("/api/games/{gameId}/disprove")
+  public ResponseEntity<Map<String, Object>> disprove(
+      @PathVariable String gameId,
+      @RequestHeader("Authorization") String auth,
+      @RequestBody DisproveResponseRequest body
+  ) {
+    try {
+      server.disproveSuggestion(gameId, player(auth), body);
+      return ResponseEntity.ok(OK);
+    } catch (IllegalStateException e) {
+      return ResponseEntity.status(HttpStatus.CONFLICT)
+          .body(Map.of("status", "ERROR", "message", e.getMessage()));
+    } catch (IllegalArgumentException e) {
+      return ResponseEntity.badRequest()
+          .body(Map.of("status", "ERROR", "message", e.getMessage()));
+    }
   }
 
   // C9
   @PostMapping("/api/games/{gameId}/accusation")
-  public Map<String, Object> accuse(
+  public ResponseEntity<Map<String, Object>> accuse(
       @PathVariable String gameId,
       @RequestHeader("Authorization") String auth,
       @RequestBody AccusationRequest body
   ) {
-    server.makeAccusation(gameId, player(auth), body);
-    return OK;
+    try {
+      server.makeAccusation(gameId, player(auth), body);
+      return ResponseEntity.ok(OK);
+    } catch (IllegalStateException e) {
+      return ResponseEntity.status(HttpStatus.CONFLICT)
+          .body(Map.of("status", "ERROR", "message", e.getMessage()));
+    } catch (IllegalArgumentException e) {
+      return ResponseEntity.badRequest()
+          .body(Map.of("status", "ERROR", "message", e.getMessage()));
+    }
   }
 
   /** The player is identified only by the token from C1/C2 (SRS 5.1). */

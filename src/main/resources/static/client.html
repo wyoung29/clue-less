@@ -13,8 +13,9 @@
 </style>
 </head>
 <body>
-<h2>Clue-Less Test Client (Skeletal)</h2>
+<h2>Clue-Less Demo Client</h2>
 <p id="status">Not connected</p>
+<p id="turnStatus">Waiting for the game to start.</p>
 
 <fieldset><legend>Lobby</legend>
   Name <input id="name" value="Player">
@@ -32,52 +33,117 @@
 <fieldset><legend>Game</legend>
   Move to <select id="to" disabled><option>Start a game to see legal moves</option></select>
   <button id="moveButton" onclick="PlayerInput.move()" disabled>C6 Move</button><br>
-  Suspect
-  <select id="suspect">
-    <option value="SCARLET">Miss Scarlet</option>
-    <option value="MUSTARD">Colonel Mustard</option>
-    <option value="WHITE">Mrs. White</option>
-    <option value="GREEN">Mr. Green</option>
-    <option value="PEACOCK">Mrs. Peacock</option>
-    <option value="PLUM" selected>Professor Plum</option>
-  </select>
-  Weapon
-  <select id="weapon">
-    <option value="CANDLESTICK">Candlestick</option>
-    <option value="KNIFE">Knife</option>
-    <option value="LEAD_PIPE">Lead Pipe</option>
-    <option value="REVOLVER">Revolver</option>
-    <option value="ROPE" selected>Rope</option>
-    <option value="WRENCH">Wrench</option>
-  </select>
-  Room
-  <select id="room">
-    <option value="KITCHEN">Kitchen</option>
-    <option value="BALLROOM">Ballroom</option>
-    <option value="CONSERVATORY">Conservatory</option>
-    <option value="DINING_ROOM">Dining Room</option>
-    <option value="BILLIARD_ROOM">Billiard Room</option>
-    <option value="LIBRARY">Library</option>
-    <option value="LOUNGE">Lounge</option>
-    <option value="HALL" selected>Hall</option>
-    <option value="STUDY">Study</option>
-  </select>
-  <button onclick="PlayerInput.accuse()">C9 Accuse</button>
+  <div>
+    <strong>Suggestion</strong> (uses your current room:
+    <span id="currentRoom">not in a room</span>)<br>
+    Suspect
+    <select id="suggestSuspect">
+      <option value="SCARLET">Miss Scarlet</option>
+      <option value="MUSTARD">Colonel Mustard</option>
+      <option value="WHITE">Mrs. White</option>
+      <option value="GREEN">Mr. Green</option>
+      <option value="PEACOCK">Mrs. Peacock</option>
+      <option value="PLUM" selected>Professor Plum</option>
+    </select>
+    Weapon
+    <select id="suggestWeapon">
+      <option value="CANDLESTICK">Candlestick</option>
+      <option value="KNIFE">Knife</option>
+      <option value="LEAD_PIPE">Lead Pipe</option>
+      <option value="REVOLVER">Revolver</option>
+      <option value="ROPE" selected>Rope</option>
+      <option value="WRENCH">Wrench</option>
+    </select>
+    <button id="suggestButton" onclick="PlayerInput.suggest()" disabled>C7 Suggest</button>
+  </div>
+  <div>
+    <strong>Accusation</strong><br>
+    Suspect
+    <select id="accuseSuspect">
+      <option value="SCARLET">Miss Scarlet</option>
+      <option value="MUSTARD">Colonel Mustard</option>
+      <option value="WHITE">Mrs. White</option>
+      <option value="GREEN">Mr. Green</option>
+      <option value="PEACOCK">Mrs. Peacock</option>
+      <option value="PLUM" selected>Professor Plum</option>
+    </select>
+    Weapon
+    <select id="accuseWeapon">
+      <option value="CANDLESTICK">Candlestick</option>
+      <option value="KNIFE">Knife</option>
+      <option value="LEAD_PIPE">Lead Pipe</option>
+      <option value="REVOLVER">Revolver</option>
+      <option value="ROPE" selected>Rope</option>
+      <option value="WRENCH">Wrench</option>
+    </select>
+    Room
+    <select id="room">
+      <option value="KITCHEN">Kitchen</option>
+      <option value="BALLROOM">Ballroom</option>
+      <option value="CONSERVATORY">Conservatory</option>
+      <option value="DINING_ROOM">Dining Room</option>
+      <option value="BILLIARD_ROOM">Billiard Room</option>
+      <option value="LIBRARY">Library</option>
+      <option value="LOUNGE">Lounge</option>
+      <option value="HALL" selected>Hall</option>
+      <option value="STUDY">Study</option>
+    </select>
+    <button id="accuseButton" onclick="PlayerInput.accuse()" disabled>C9 Accuse</button>
+  </div><br>
+  <label for="disproveCard">Card to show</label>
+  <select id="disproveCard" disabled></select>
+  <button id="disproveButton" onclick="PlayerInput.disprove()" disabled>C8 Show card</button>
 </fieldset>
 
 <div id="log"></div>
 
 <script>
-// Client subsystem components (SRS 2.2.2), kept minimal for the skeletal increment.
+// Client subsystem components (SRS 2.2.2), kept minimal for the demo.
 
 // Local Game State: what this client knows from the server.
 const LocalGameState = {
   gameId: null, playerId: null, token: null, lastSeq: 0, hand: [],
+  isMyTurn: false, canSuggest: false, hasMoved: false, legalMoves: [], currentCharacter: null,
   apply(msg) {
     if (msg.seq != null) this.lastSeq = msg.seq;
     if (msg.type === 'U1_HAND_DEALT' && Array.isArray(msg.payload?.cards)) {
       this.hand = msg.payload.cards;
       GUI.renderHand(this.hand);
+    }
+    if (msg.type === 'B5_TURN_CHANGED') {
+      this.isMyTurn = msg.payload?.playerId === this.playerId;
+      this.hasMoved = false;
+      this.currentCharacter = msg.payload?.character;
+      GUI.clearDisproveCards();
+      GUI.renderTurn(msg.payload, this.isMyTurn);
+      GUI.updateControls();
+    }
+    if (msg.type === 'U2_YOUR_TURN') {
+      this.isMyTurn = true;
+      this.hasMoved = false;
+      this.canSuggest = msg.payload?.canSuggest === true;
+      this.legalMoves = msg.payload?.legalMoves || [];
+      GUI.renderCurrentRoom(msg.payload?.location);
+      GUI.renderMoves(this.legalMoves);
+      GUI.updateControls();
+    }
+    if (msg.type === 'B7_SUGGESTION_MADE') {
+      this.isMyTurn = false;
+      GUI.updateControls();
+    }
+    if (msg.type === 'U3_DISPROVE_REQUEST') GUI.renderDisproveCards(msg.payload?.cards || []);
+    if (msg.type === 'B6_PLAYER_MOVED' && msg.payload?.character === this.currentCharacter) {
+      GUI.renderCurrentRoom(msg.payload?.to);
+    }
+    if (msg.type === 'B13_PLAYER_ELIMINATED' && msg.payload?.playerId === this.playerId) {
+      this.isMyTurn = false;
+      GUI.updateControls();
+    }
+    if (msg.type === 'B14_GAME_OVER') {
+      this.isMyTurn = false;
+      document.getElementById('turnStatus').textContent =
+        'Game over. ' + (msg.payload?.winner || msg.payload?.winnerId) + ' wins.';
+      GUI.updateControls();
     }
     if (msg.type === 'B4_GAME_STARTED' || msg.type === 'B6_PLAYER_MOVED') {
       PlayerInput.refreshMoves();
@@ -113,24 +179,58 @@ const GUI = {
   },
   renderMoves(locations) {
     const select = document.getElementById('to');
-    const moveButton = document.getElementById('moveButton');
     select.replaceChildren();
     if (locations.length === 0) {
       select.add(new Option('No legal moves available', ''));
-      select.disabled = true;
-      moveButton.disabled = true;
+      this.updateControls();
       return;
     }
 
     select.add(new Option('Choose a destination', ''));
     for (const location of locations) select.add(new Option(location, location));
     select.disabled = false;
-    moveButton.disabled = false;
+    this.updateControls();
+  },
+  renderTurn(payload, isMyTurn) {
+    const active = payload?.character || payload?.playerId || 'unknown player';
+    document.getElementById('turnStatus').textContent = isMyTurn
+    ? 'Your turn: movement is optional; make a suggestion or accusation.'
+    : active + "'s turn.";
+  },
+  renderCurrentRoom(location) {
+    const rooms = ['KITCHEN', 'BALLROOM', 'CONSERVATORY', 'DINING_ROOM',
+    'BILLIARD_ROOM', 'LIBRARY', 'LOUNGE', 'HALL', 'STUDY'];
+    const room = rooms.includes(location) ? location.replaceAll('_', ' ') : 'not in a room';
+    document.getElementById('currentRoom').textContent = room;
+  },
+  renderDisproveCards(cards) {
+    const select = document.getElementById('disproveCard');
+    select.replaceChildren();
+    select.add(new Option('Choose a card to show', ''));
+    for (const card of cards) select.add(new Option(card, card));
+    select.disabled = false;
+    document.getElementById('disproveButton').disabled = false;
+  },
+  clearDisproveCards() {
+    const select = document.getElementById('disproveCard');
+    select.replaceChildren();
+    select.disabled = true;
+    document.getElementById('disproveButton').disabled = true;
+  },
+  updateControls() {
+    document.getElementById('to').disabled =
+    !LocalGameState.isMyTurn || LocalGameState.hasMoved || LocalGameState.legalMoves.length === 0;
+    document.getElementById('moveButton').disabled =
+    !LocalGameState.isMyTurn || LocalGameState.hasMoved || LocalGameState.legalMoves.length === 0;
+    document.getElementById('suggestButton').disabled =
+    !LocalGameState.isMyTurn || !LocalGameState.canSuggest;
+    document.getElementById('accuseButton').disabled = !LocalGameState.isMyTurn;
   }
 };
 
 // Client Communication: REST out, WebSocket in.
 const ClientCommunication = {
+  lastResponseOk: false,
   async send(method, path, body) {
     GUI.log('SEND ' + method + ' ' + path + ' ' + (body ? JSON.stringify(body) : ''), 'out');
     const res = await fetch(path, {
@@ -139,6 +239,7 @@ const ClientCommunication = {
       body: body ? JSON.stringify(body) : undefined
     });
     const json = await res.json().catch(() => ({}));
+    this.lastResponseOk = res.ok;
     GUI.log('HTTP ' + res.status + ' ' + JSON.stringify(json), 'out');
     return json;
   },
@@ -175,15 +276,43 @@ const PlayerInput = {
   },
   startGame() { ClientCommunication.send('POST', game() + '/start'); },
   async refreshMoves() {
-    const locations = await ClientCommunication.send('GET', game() + '/moves');
+    const [locations, suggestion] = await Promise.all([
+      ClientCommunication.send('GET', game() + '/moves'),
+      ClientCommunication.send('GET', game() + '/can-suggest')
+    ]);
     if (Array.isArray(locations)) GUI.renderMoves(locations);
     else GUI.renderMoves([]);
+    if (typeof suggestion.canSuggest === 'boolean') {
+      LocalGameState.canSuggest = suggestion.canSuggest;
+      GUI.updateControls();
+    }
   },
   move() {
     const destination = val('to');
-    if (destination) ClientCommunication.send('POST', game() + '/move', { to: destination, stay: false });
+    if (destination) ClientCommunication.send('POST', game() + '/move', { to: destination, stay: false })
+      .then(() => {
+        if (ClientCommunication.lastResponseOk) {
+          LocalGameState.hasMoved = true;
+          GUI.updateControls();
+        }
+      });
   },
-  accuse() { ClientCommunication.send('POST', game() + '/accusation', { suspect: val('suspect'), weapon: val('weapon'), room: val('room') }); }
+  suggest() {
+    ClientCommunication.send('POST', game() + '/suggestion', {
+      suspect: val('suggestSuspect'), weapon: val('suggestWeapon')
+    });
+  },
+  disprove() {
+    const card = val('disproveCard');
+    if (!card) return;
+    ClientCommunication.send('POST', game() + '/disprove', { card }).then(() => {
+      if (ClientCommunication.lastResponseOk) {
+        document.getElementById('disproveCard').disabled = true;
+        document.getElementById('disproveButton').disabled = true;
+      }
+    });
+  },
+  accuse() { ClientCommunication.send('POST', game() + '/accusation', { suspect: val('accuseSuspect'), weapon: val('accuseWeapon'), room: val('room') }); }
 };
 </script>
 </body>

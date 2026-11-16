@@ -33,7 +33,7 @@ public class GameStateManager {
         return seqByGame.computeIfAbsent(gameId, g -> new AtomicLong()).incrementAndGet();
     }
 
-    public void initializeGame(String gameId, Map<String, Location> startingLocations) {
+    public synchronized void initializeGame(String gameId, Map<String, Location> startingLocations) {
         log.info("Initializing Board {} with {} players...", gameId, startingLocations.size());
 
         BoardState board = new BoardState(startingLocations);
@@ -47,13 +47,13 @@ public class GameStateManager {
         return boardLocation.containsKey(gameId);
     }
 
-    public Location getLocationOfPlayer(String gameId, String player) {
+    public synchronized Location getLocationOfPlayer(String gameId, String player) {
         BoardState board = requireBoard(gameId);
         return board.locations.get(player);
     }
 
     // Returns the hallways that are currently occupied by players in a game.
-    public Set<Hallway> getOccupiedHallways(String gameId) {
+    public synchronized Set<Hallway> getOccupiedHallways(String gameId) {
         BoardState board = requireBoard(gameId);
         Set<Hallway> occupied = EnumSet.noneOf(Hallway.class);
         for (Location loc : board.locations.values()) {
@@ -64,7 +64,7 @@ public class GameStateManager {
         return occupied;
     }
 
-    public void updateLocation(String gameId, String player, Location newLocation) {
+    public synchronized void updateLocation(String gameId, String player, Location newLocation) {
         BoardState board = requireBoard(gameId);
 
         if (!board.locations.containsKey(player)) {
@@ -73,6 +73,11 @@ public class GameStateManager {
 
         Location oldLocation = board.locations.put(player, newLocation);
         log.info("updateLocation({}, {}: {} -> {})", gameId, player, oldLocation, newLocation);
+    }
+
+    public synchronized void removePlayer(String gameId, String player) {
+        BoardState board = requireBoard(gameId);
+        board.locations.remove(player);
     }
 
     public Card.Solution caseFile(String gameId) {
