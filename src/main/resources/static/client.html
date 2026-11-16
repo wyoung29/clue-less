@@ -32,8 +32,36 @@
 <fieldset><legend>Game</legend>
   Move to <select id="to" disabled><option>Start a game to see legal moves</option></select>
   <button id="moveButton" onclick="PlayerInput.move()" disabled>C6 Move</button><br>
-  Suspect <input id="suspect" value="PLUM" size="8"> Weapon <input id="weapon" value="ROPE" size="8">
-  Room <input id="room" value="HALL" size="8">
+  Suspect
+  <select id="suspect">
+    <option value="SCARLET">Miss Scarlet</option>
+    <option value="MUSTARD">Colonel Mustard</option>
+    <option value="WHITE">Mrs. White</option>
+    <option value="GREEN">Mr. Green</option>
+    <option value="PEACOCK">Mrs. Peacock</option>
+    <option value="PLUM" selected>Professor Plum</option>
+  </select>
+  Weapon
+  <select id="weapon">
+    <option value="CANDLESTICK">Candlestick</option>
+    <option value="KNIFE">Knife</option>
+    <option value="LEAD_PIPE">Lead Pipe</option>
+    <option value="REVOLVER">Revolver</option>
+    <option value="ROPE" selected>Rope</option>
+    <option value="WRENCH">Wrench</option>
+  </select>
+  Room
+  <select id="room">
+    <option value="KITCHEN">Kitchen</option>
+    <option value="BALLROOM">Ballroom</option>
+    <option value="CONSERVATORY">Conservatory</option>
+    <option value="DINING_ROOM">Dining Room</option>
+    <option value="BILLIARD_ROOM">Billiard Room</option>
+    <option value="LIBRARY">Library</option>
+    <option value="LOUNGE">Lounge</option>
+    <option value="HALL" selected>Hall</option>
+    <option value="STUDY">Study</option>
+  </select>
   <button onclick="PlayerInput.accuse()">C9 Accuse</button>
 </fieldset>
 
